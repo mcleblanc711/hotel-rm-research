@@ -506,7 +506,7 @@ function render() {
     for (let s = 0; s < c.S; s++) { g += c.gross[s * c.W]; x += c.canc[s * c.W]; fin += c.fin[s]; finRev += c.finRev[s]; ns += c.noshow[s]; }
     refs.kpis.innerHTML = [
       ["Stayed", nf0.format(fin) + " rn"],
-      ["Booked (gross)", nf0.format(g) + " rn"],
+      ["Booked", nf0.format(g) + " rn"],
       ["Canceled", g ? nf1.format(100 * x / g) + "%" : "n/a"],
       ["No-show", g ? nf1.format(100 * ns / g) + "%" : "n/a"],
       ["Median lead", c.medLead == null ? "n/a" : c.medLead + " d"],
