@@ -1,0 +1,12 @@
+# Private material never leaves this machine
+data/private/
+notes/
+# Generated outputs
+out/
+*.duckdb
+__pycache__/
+.venv/
+# Stray workbooks (only excel/ is tracked)
+*.xlsx
+!excel/*.xlsx
+~$*

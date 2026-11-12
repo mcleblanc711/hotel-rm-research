@@ -1,0 +1,9 @@
+source_system,market_segment_raw,business_source,mapping_version,note
+ANTONIO,Online TA,OTA,1,Online travel agencies
+ANTONIO,Offline TA/TO,WHOLESALE,1,Offline travel agents and tour operators (FIT / static-rate style business)
+ANTONIO,Direct,DIRECT,1,
+ANTONIO,Corporate,CORPORATE,1,
+ANTONIO,Groups,GROUP,1,
+ANTONIO,Complementary,COMP,1,
+ANTONIO,Aviation,OTHER,1,Airline crew contracts
+ANTONIO,Undefined,UNKNOWN,1,
