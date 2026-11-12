@@ -116,7 +116,7 @@ def main():
         print(f"{name:40} {sev:6} {obs:>12,.0f} {exp_s:>12}  {result}")
 
     tables = ["fact_reservation", "fact_stay_night", "dim_property", "dim_source_mapping",
-              "mart_booking_curve", "qa_report"]
+              "mart_booking_curve", "mart_booking_curve_compact", "qa_report"]
     counts = {}
     for t in tables:
         con.execute(f"COPY {t} TO '{out / (t + '.csv')}' (HEADER, DELIMITER ',')")

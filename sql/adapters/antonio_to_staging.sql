@@ -66,6 +66,7 @@ SELECT
     t.reservation_status_date                               AS status_date,
     CASE WHEN t.reservation_status = 'Canceled' THEN t.reservation_status_date END
                                                             AS canceled_date,
+    CAST(NULL AS TIMESTAMP)                                 AS canceled_at,  -- source has dates only
     CASE WHEN t.reservation_status = 'Canceled' THEN 'OBSERVED' ELSE 'UNAVAILABLE' END
                                                             AS cancellation_date_basis,
     t.market_segment                                        AS market_segment_raw,

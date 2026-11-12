@@ -19,7 +19,7 @@ SELECT
     f.booking_date,
     f.canceled_date,
     1                                    AS room_nights,
-    CAST(f.room_revenue / f.los_nights AS DECIMAL(14, 4)) AS allocated_room_revenue,
+    CAST(CAST(f.room_revenue AS DOUBLE) / f.los_nights AS DECIMAL(14, 4)) AS allocated_room_revenue,
     CASE WHEN f.room_revenue_basis = 'OBSERVED' THEN 'EVEN_SPLIT_OF_OBSERVED'
          ELSE 'ADR_DERIVED_ALLOCATION' END AS nightly_rate_basis
 FROM fact_reservation f

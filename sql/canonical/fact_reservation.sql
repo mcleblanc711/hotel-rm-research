@@ -23,6 +23,7 @@ SELECT
     s.status_date,
     CASE WHEN s.reservation_status = 'CANCELED' THEN 1 ELSE 0 END AS is_canceled,
     s.canceled_date,
+    s.canceled_at,
     s.cancellation_date_basis,
     days_between(s.canceled_date, s.arrival_date)           AS cancellation_lead_days,
     s.market_segment_raw,

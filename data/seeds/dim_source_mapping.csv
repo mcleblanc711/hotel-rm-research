@@ -7,3 +7,11 @@ ANTONIO,Groups,GROUP,1,
 ANTONIO,Complementary,COMP,1,
 ANTONIO,Aviation,OTHER,1,Airline crew contracts
 ANTONIO,Undefined,UNKNOWN,1,
+SYNTH,OTA-A,OTA,1,Synthetic example
+SYNTH,OTA-B,OTA,1,Synthetic example
+SYNTH,WHL,WHOLESALE,1,Synthetic example
+SYNTH,DIR-WEB,DIRECT,1,Synthetic example
+SYNTH,DIR-PH,DIRECT,1,Synthetic example
+SYNTH,CORP,CORPORATE,1,Synthetic example
+SYNTH,GRP,GROUP,1,Synthetic example
+SYNTH,COMP,COMP,1,Synthetic example
