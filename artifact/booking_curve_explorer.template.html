@@ -1,0 +1,528 @@
+<title>Booking Curve Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a page-level control bar, then two equal chart panels side by side
+   (stacked on narrow screens), then method notes. Charts read right-to-left in
+   time: far out on the left, the stay night on the right edge. */
+:root {
+  --bg: #f1f3f6;
+  --surface: #fcfcfb;
+  --ink: #10151c;
+  --ink-2: #4a5361;
+  --ink-3: #737c8a;
+  --line: #dde1e8;
+  --grid: #e7eaef;
+  --accent: #1c5cab;
+  --accent-soft: #e3edf9;
+  --note-bg: #fff6df;
+  --note-ink: #6a4b00;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #6250d6;
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111417; --surface: #1a1a19; --ink: #eef0f2; --ink-2: #c0c6ce; --ink-3: #8d95a1;
+    --line: #2d3239; --grid: #272b31; --accent: #7fb2ee; --accent-soft: #1d2a3a;
+    --note-bg: #2e2710; --note-ink: #f1d488;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111417; --surface: #1a1a19; --ink: #eef0f2; --ink-2: #c0c6ce; --ink-3: #8d95a1;
+  --line: #2d3239; --grid: #272b31; --accent: #7fb2ee; --accent-soft: #1d2a3a;
+  --note-bg: #2e2710; --note-ink: #f1d488;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9085e9;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.page { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+header.top { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: flex-end; justify-content: space-between; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: 26px; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.sub { color: var(--ink-2); margin: 2px 0 0; }
+.flag {
+  background: var(--note-bg); color: var(--note-ink);
+  font-size: 12.5px; padding: 6px 10px; border-radius: 4px; max-width: 46ch;
+}
+.flag b { font-weight: 600; }
+
+.bar {
+  display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end;
+  padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+}
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.field > span, .seg-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); font-weight: 500;
+}
+select {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; max-width: 100%;
+}
+select:focus-visible, .seg button:focus-visible, input:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button {
+  font: inherit; border: 0; background: var(--surface); color: var(--ink-2);
+  padding: 5px 11px; cursor: pointer; border-left: 1px solid var(--line);
+}
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.check { display: flex; gap: 8px; align-items: center; color: var(--ink-2); padding-bottom: 5px; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+
+.panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1040px) { .panels { grid-template-columns: minmax(0, 1fr); } }
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+}
+.panel h2 {
+  font-family: var(--f-display); font-weight: 600; font-size: 16px; margin: 0;
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+}
+.panel h2 .tag {
+  font-family: var(--f-data); font-size: 11px; font-weight: 500; color: var(--accent);
+  background: var(--accent-soft); padding: 1px 6px; border-radius: 3px;
+}
+.row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.filters { padding-top: 10px; border-top: 1px dashed var(--line); }
+.mirrored { color: var(--ink-3); font-size: 13px; padding-top: 10px; border-top: 1px dashed var(--line); margin: 0; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(98px, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 4px; }
+.kpi { padding: 8px 10px; border-left: 1px solid var(--line); margin-left: -1px; min-width: 0; }
+.kpi .k { font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.05em; }
+.kpi .v { font-family: var(--f-data); font-size: 15px; white-space: nowrap; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.chart-title { font-weight: 600; margin: 0; }
+.chart-sub { color: var(--ink-3); font-size: 12.5px; margin: 0; }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--f-data); font-size: 11px; fill: var(--ink-3); }
+.chart text.endlab { font-family: var(--f-body); font-size: 12px; fill: var(--ink-2); font-weight: 500; }
+.chart text.axis-title { font-family: var(--f-body); fill: var(--ink-3); font-size: 11.5px; }
+.tip {
+  position: absolute; pointer-events: none; z-index: 2; top: 0; left: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  padding: 8px 10px; font-size: 12.5px; min-width: 150px; white-space: nowrap;
+}
+.tip .th { font-weight: 600; margin-bottom: 4px; }
+.tip .tr { display: flex; align-items: center; gap: 7px; }
+.tip .tr .n { flex: 1; color: var(--ink-2); }
+.tip .tr .x { font-family: var(--f-data); font-variant-numeric: tabular-nums; }
+.sw { width: 10px; height: 10px; border-radius: 2px; flex: none; display: inline-block; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.empty { color: var(--ink-3); padding: 40px 0; text-align: center; }
+
+details { border-top: 1px dashed var(--line); padding-top: 8px; }
+summary { cursor: pointer; color: var(--accent); font-weight: 500; width: fit-content; }
+.tablewrap { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { padding: 4px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { color: var(--ink-3); font-weight: 500; font-size: 11.5px; }
+td { font-family: var(--f-data); font-variant-numeric: tabular-nums; }
+td:first-child { font-family: var(--f-body); }
+
+.notes {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 28px;
+  color: var(--ink-2); font-size: 13px;
+}
+.notes h3 { font-family: var(--f-display); font-size: 13.5px; font-weight: 600; color: var(--ink); margin: 0 0 4px; }
+.notes p { margin: 0 0 6px; max-width: 62ch; }
+.notes a { color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) { .seg button, select { transition: background-color 0.12s; } }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div>
+      <h1>Booking Curve Explorer</h1>
+      <p class="sub">City Hotel and Resort Hotel, Portugal · stay nights 1 Jul 2015 to 31 Aug 2017 · <span id="nbook"></span> bookings</p>
+    </div>
+    <div class="flag"><b>Reconstructed, not observed.</b> Curves are rebuilt from each booking's final record. The source has no modification history and no room counts, so there is no occupancy % here.</div>
+  </header>
+
+  <section class="bar" aria-label="Page settings">
+    <div class="field">
+      <span class="seg-label" id="hz-l">How far out</span>
+      <div class="seg" role="group" aria-labelledby="hz-l" id="horizon">
+        <button type="button" data-v="60">60 days</button>
+        <button type="button" data-v="120">120 days</button>
+        <button type="button" data-v="365">365 days</button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="seg-label" id="bs-l">Count days before</span>
+      <div class="seg" role="group" aria-labelledby="bs-l" id="basis">
+        <button type="button" data-v="night">Each stay night</button>
+        <button type="button" data-v="arrival">Arrival date</button>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="shared" checked> Use chart A's filters for chart B</label>
+  </section>
+
+  <div class="panels" id="panels"></div>
+
+  <section class="notes">
+    <div>
+      <h3>How to read a curve</h3>
+      <p>The right edge is the stay night. Moving left goes further out. "Net on the books" at 30 days is every room-night booked 30 or more days ahead, minus those already canceled by then.</p>
+      <p>"% of final stayed" divides that by the room-nights that ended as checked-out. It runs above 100% when more was on the books than eventually stayed; the gap is the wash still to come.</p>
+    </div>
+    <div>
+      <h3>What is derived</h3>
+      <p>Booking date is arrival date minus lead time. Cancellation date is the status date of canceled bookings. No-shows stay on the books until the night itself and are not counted as stayed.</p>
+      <p>ADR is one average per booking, applied evenly to each of its nights. It is not a nightly rate schedule.</p>
+    </div>
+    <div>
+      <h3>What is missing</h3>
+      <p>Date changes, rate changes and room moves are not recorded, so a booking appears with its final dates from the day it was made. Real pickup reports would differ.</p>
+      <p>Stay nights after 31 Aug 2017 are left out because the file only includes arrivals up to that date.</p>
+    </div>
+    <div>
+      <h3>Source</h3>
+      <p>Antonio, Almeida &amp; Nunes (2019), Hotel booking demand datasets, <i>Data in Brief</i> 22. CC BY 4.0. Source of business groups the dataset's market segments: Online TA, Offline TA/TO (shown as Wholesale), Direct, Corporate, Groups; Complementary, Aviation and Undefined are Other.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+const B64 = "__DATA_B64__";
+const N = __N_BOOKINGS__;
+
+/* ---------- data ---------- */
+const bin = atob(B64);
+const P = new Uint8Array(N), ST = new Uint8Array(N), SOB = new Uint8Array(N), LOS = new Uint8Array(N);
+const ARR = new Uint16Array(N), LEAD = new Uint16Array(N), CL = new Uint16Array(N), ADR = new Float32Array(N);
+for (let i = 0, o = 0; i < N; i++, o += 10) {
+  const b0 = bin.charCodeAt(o);
+  P[i] = b0 & 1; ST[i] = (b0 >> 1) & 3; SOB[i] = b0 >> 3;
+  LOS[i] = bin.charCodeAt(o + 1);
+  ARR[i] = bin.charCodeAt(o + 2) | (bin.charCodeAt(o + 3) << 8);
+  LEAD[i] = bin.charCodeAt(o + 4) | (bin.charCodeAt(o + 5) << 8);
+  CL[i] = bin.charCodeAt(o + 6) | (bin.charCodeAt(o + 7) << 8);
+  ADR[i] = (bin.charCodeAt(o + 8) | (bin.charCodeAt(o + 9) << 8)) / 10;
+}
+const NO_CANCEL = 65535, MAXD = 366, LAST_DAY = 792; // 31 Aug 2017 as days since 1 Jul 2015
+const D_MONTH = new Uint8Array(LAST_DAY + 1), D_YEAR = new Uint8Array(LAST_DAY + 1), D_DOW = new Uint8Array(LAST_DAY + 1);
+for (let d = 0; d <= LAST_DAY; d++) {
+  const dt = new Date(Date.UTC(2015, 6, 1 + d));
+  D_MONTH[d] = dt.getUTCMonth(); D_YEAR[d] = dt.getUTCFullYear() - 2015; D_DOW[d] = (dt.getUTCDay() + 6) % 7; // Mon=0
+}
+const SEASON_OF = [0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 0]; // Dec-Feb winter, Mar-May spring, Jun-Aug summer, Sep-Nov autumn
+const losBand = l => l <= 1 ? 0 : l <= 3 ? 1 : l <= 6 ? 2 : 3;
+
+/* ---------- dimensions ---------- */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DIMS = {
+  prop:   { label: "Property", names: ["City Hotel", "Resort Hotel"], level: "res", key: i => P[i] },
+  sob:    { label: "Source of business", names: ["OTA", "Wholesale", "Direct", "Corporate", "Group", "Other"], level: "res", key: i => SOB[i] },
+  los:    { label: "Length of stay", names: ["1 night", "2 to 3 nights", "4 to 6 nights", "7+ nights"], level: "res", key: i => losBand(LOS[i]) },
+  season: { label: "Season", names: ["Winter", "Spring", "Summer", "Autumn"], level: "night", key: d => SEASON_OF[D_MONTH[d]] },
+  wk:     { label: "Weekend or weekday", names: ["Sun to Thu nights", "Fri and Sat nights"], level: "night", key: d => D_DOW[d] === 4 || D_DOW[d] === 5 ? 1 : 0 },
+  dow:    { label: "Day of week", names: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], level: "night", key: d => D_DOW[d] },
+  year:   { label: "Stay year", names: ["2015", "2016", "2017"], level: "night", key: d => D_YEAR[d] },
+  none:   { label: "No split", names: ["All selected"], level: "res", key: () => 0 },
+};
+const MEASURES = {
+  pace:    { label: "Net on the books, % of final stayed", unit: "%", sub: "Room-nights on the books at each point, as a share of room-nights that ended as checked-out" },
+  net:     { label: "Net on the books, room-nights", unit: "rn", sub: "Booked minus canceled so far, total across the selected stay nights" },
+  gross:   { label: "Gross booked, room-nights", unit: "rn", sub: "Everything booked so far, including what later canceled" },
+  canc:    { label: "Canceled so far, room-nights", unit: "rn", sub: "Room-nights canceled by each point" },
+  cancpct: { label: "Canceled so far, % of gross booked", unit: "%", sub: "Of everything booked by each point, the share already canceled" },
+  pickup:  { label: "Net pickup, trailing 7 days", unit: "rn", sub: "Change in net room-nights on the books over the previous 7 days" },
+  adr:     { label: "ADR on the books", unit: "eur", sub: "Average booking ADR of room-nights on the books (points with fewer than 30 room-nights hidden)" },
+};
+const FILTERS = [
+  { id: "prop", label: "Property", opts: [["all", "Both"], ["0", "City Hotel"], ["1", "Resort Hotel"]] },
+  { id: "sob", label: "Source of business", opts: [["all", "All"], ...DIMS.sob.names.map((n, i) => [String(i), n])] },
+  { id: "when", label: "Stay period", opts: [["all", "All dates"],
+      ...DIMS.season.names.map((n, i) => ["s" + i, n]), ...MONTHS.map((n, i) => ["m" + i, n])] },
+  { id: "year", label: "Stay year", opts: [["all", "All"], ["0", "2015"], ["1", "2016"], ["2", "2017"]] },
+  { id: "dow", label: "Stay night", opts: [["all", "Any night"], ["we", "Fri and Sat"], ["wd", "Sun to Thu"],
+      ...DIMS.dow.names.map((n, i) => ["d" + i, n])] },
+  { id: "los", label: "Length of stay", opts: [["all", "Any"], ...DIMS.los.names.map((n, i) => [String(i), n])] },
+];
+
+/* ---------- state ---------- */
+const state = {
+  horizon: 120, basis: "night", shared: true,
+  panels: [
+    { measure: "pace", compare: "prop", f: { prop: "all", sob: "all", when: "all", year: "all", dow: "all", los: "all" } },
+    { measure: "pace", compare: "sob", f: { prop: "all", sob: "all", when: "all", year: "all", dow: "all", los: "all" } },
+  ],
+};
+
+/* ---------- compute ---------- */
+function compute(compare, f, basis) {
+  const dim = DIMS[compare], S = dim.names.length, W = MAXD + 1;
+  const gross = new Float64Array(S * W), canc = new Float64Array(S * W);
+  const revG = new Float64Array(S * W), revC = new Float64Array(S * W);
+  const fin = new Float64Array(S), finRev = new Float64Array(S), noshow = new Float64Array(S);
+  const leadHist = new Uint32Array(738); let nBookings = 0;
+  const fp = f.prop === "all" ? -1 : +f.prop, fs = f.sob === "all" ? -1 : +f.sob, fl = f.los === "all" ? -1 : +f.los;
+  const fy = f.year === "all" ? -1 : +f.year;
+  const wSeason = f.when[0] === "s" ? +f.when.slice(1) : -1, wMonth = f.when[0] === "m" ? +f.when.slice(1) : -1;
+  const dowMode = f.dow === "all" ? 0 : f.dow === "we" ? 1 : f.dow === "wd" ? 2 : 3, dowDay = dowMode === 3 ? +f.dow.slice(1) : -1;
+  const nightAware = basis === "night", resLevel = dim.level === "res";
+  for (let i = 0; i < N; i++) {
+    if (fp >= 0 && P[i] !== fp) continue;
+    if (fs >= 0 && SOB[i] !== fs) continue;
+    const los = LOS[i];
+    if (fl >= 0 && losBand(los) !== fl) continue;
+    const arr = ARR[i], lead = LEAD[i], cl = CL[i], st = ST[i], adr = ADR[i];
+    const sRes = resLevel ? dim.key(i) : 0;
+    let any = false;
+    for (let k = 0; k < los; k++) {
+      const day = arr + k;
+      if (day > LAST_DAY) break;
+      if (fy >= 0 && D_YEAR[day] !== fy) continue;
+      const m = D_MONTH[day];
+      if (wMonth >= 0 && m !== wMonth) continue;
+      if (wSeason >= 0 && SEASON_OF[m] !== wSeason) continue;
+      if (dowMode) {
+        const w = D_DOW[day], we = w === 4 || w === 5;
+        if (dowMode === 1 ? !we : dowMode === 2 ? we : w !== dowDay) continue;
+      }
+      any = true;
+      const s = resLevel ? sRes : dim.key(day), base = s * W;
+      const off = nightAware ? k : 0;
+      const db = Math.min(lead + off, MAXD);
+      gross[base + db]++; revG[base + db] += adr;
+      if (cl !== NO_CANCEL) { const dc = Math.min(cl + off, MAXD); canc[base + dc]++; revC[base + dc] += adr; }
+      if (st === 0) { fin[s]++; finRev[s] += adr; } else if (st === 1) noshow[s]++;
+    }
+    if (any) { leadHist[lead]++; nBookings++; }
+  }
+  for (let s = 0; s < S; s++) {
+    const base = s * W;
+    for (let d = MAXD - 1; d >= 0; d--) {
+      gross[base + d] += gross[base + d + 1]; canc[base + d] += canc[base + d + 1];
+      revG[base + d] += revG[base + d + 1]; revC[base + d] += revC[base + d + 1];
+    }
+  }
+  let med = null;
+  if (nBookings) { let c = 0; const half = nBookings / 2; for (let l = 0; l < 738; l++) { c += leadHist[l]; if (c >= half) { med = l; break; } } }
+  return { dim, S, W, gross, canc, revG, revC, fin, finRev, noshow, nBookings, medLead: med };
+}
+function seriesValues(c, measure, horizon) {
+  const out = [];
+  for (let s = 0; s < c.S; s++) {
+    const base = s * c.W, v = new Float64Array(horizon + 1), total = c.gross[base];
+    for (let d = 0; d <= horizon; d++) {
+      const g = c.gross[base + d], x = c.canc[base + d], net = g - x;
+      let y;
+      switch (measure) {
+        case "pace": y = c.fin[s] > 0 ? 100 * net / c.fin[s] : NaN; break;
+        case "net": y = net; break;
+        case "gross": y = g; break;
+        case "canc": y = x; break;
+        case "cancpct": y = g >= 30 ? 100 * x / g : NaN; break;
+        case "pickup": { const j = Math.min(d + 7, MAXD); y = net - (c.gross[base + j] - c.canc[base + j]); break; }
+        case "adr": y = net >= 30 ? (c.revG[base + d] - c.revC[base + d]) / net : NaN; break;
+      }
+      v[d] = y;
+    }
+    out.push({ s, name: c.dim.names[s], color: "var(--s" + (s + 1) + ")", v, empty: total === 0 });
+  }
+  return out;
+}
+
+/* ---------- formatting ---------- */
+const nf0 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+function fmt(y, unit) {
+  if (y == null || Number.isNaN(y)) return "n/a";
+  if (unit === "%") return nf1.format(y) + "%";
+  if (unit === "eur") return "€" + nf1.format(y);
+  return nf0.format(y);
+}
+function fmtAxis(y, unit) {
+  if (unit === "%") return nf0.format(y) + "%";
+  if (unit === "eur") return "€" + nf0.format(y);
+  return Math.abs(y) >= 10000 ? nf0.format(y / 1000) + "k" : nf0.format(y);
+}
+function niceTicks(lo, hi, n) {
+  if (hi === lo) hi = lo + 1;
+  const raw = (hi - lo) / n, p = Math.pow(10, Math.floor(Math.log10(raw))), r = raw / p;
+  const step = (r <= 1 ? 1 : r <= 2 ? 2 : r <= 5 ? 5 : 10) * p;
+  const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step, t = [];
+  for (let x = a; x <= b + step / 2; x += step) t.push(+x.toFixed(10));
+  return t;
+}
+const el = (tag, attrs, html) => { const e = document.createElement(tag); if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- panel UI ---------- */
+const panelsEl = document.getElementById("panels");
+const ui = [];
+function selectHTML(id, opts, value) {
+  return `<select id="${id}">` + opts.map(([v, l]) => `<option value="${v}"${v === value ? " selected" : ""}>${esc(l)}</option>`).join("") + "</select>";
+}
+function buildPanel(idx) {
+  const L = idx === 0 ? "a" : "b", st = state.panels[idx];
+  const sec = el("section", { class: "panel", "aria-label": "Chart " + L.toUpperCase() });
+  sec.innerHTML = `
+    <h2><span class="tag">${L.toUpperCase()}</span><span>Chart ${L.toUpperCase()}</span></h2>
+    <div class="row">
+      <label class="field"><span>Measure</span>${selectHTML(L + "-measure", Object.entries(MEASURES).map(([k, m]) => [k, m.label]), st.measure)}</label>
+      <label class="field"><span>Split lines by</span>${selectHTML(L + "-compare", Object.entries(DIMS).map(([k, d]) => [k, d.label]), st.compare)}</label>
+    </div>
+    <div class="row filters" data-role="filters">
+      ${FILTERS.map(f => `<label class="field"><span>${f.label}</span>${selectHTML(L + "-f-" + f.id, f.opts, st.f[f.id])}</label>`).join("")}
+    </div>
+    <p class="mirrored" data-role="mirrored" hidden>Using chart A's filters. Untick the box above to filter this chart separately.</p>
+    <div class="kpis" data-role="kpis"></div>
+    <div>
+      <p class="chart-title" data-role="title"></p>
+      <p class="chart-sub" data-role="sub"></p>
+    </div>
+    <div class="chart" data-role="chart"></div>
+    <div class="legend" data-role="legend"></div>
+    <details><summary>Values at pickup checkpoints</summary><div class="tablewrap" data-role="table"></div></details>`;
+  panelsEl.appendChild(sec);
+  const q = r => sec.querySelector(`[data-role="${r}"]`);
+  const refs = { sec, filters: q("filters"), mirrored: q("mirrored"), kpis: q("kpis"), title: q("title"), sub: q("sub"), chart: q("chart"), legend: q("legend"), table: q("table") };
+  sec.querySelector("#" + L + "-measure").addEventListener("change", e => { st.measure = e.target.value; render(); });
+  sec.querySelector("#" + L + "-compare").addEventListener("change", e => { st.compare = e.target.value; render(); });
+  FILTERS.forEach(f => sec.querySelector("#" + L + "-f-" + f.id).addEventListener("change", e => { st.f[f.id] = e.target.value; render(); }));
+  ui[idx] = refs;
+}
+buildPanel(0); buildPanel(1);
+
+function bindSeg(id, key, cast) {
+  const g = document.getElementById(id);
+  const sync = () => g.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(cast(b.dataset.v) === state[key])));
+  g.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state[key] = cast(b.dataset.v); sync(); render(); });
+  sync();
+}
+bindSeg("horizon", "horizon", Number);
+bindSeg("basis", "basis", String);
+document.getElementById("shared").addEventListener("change", e => { state.shared = e.target.checked; render(); });
+document.getElementById("nbook").textContent = nf0.format(N);
+
+/* ---------- chart ---------- */
+function drawChart(refs, series, measure, horizon) {
+  const unit = MEASURES[measure].unit, host = refs.chart;
+  const live = series.filter(s => !s.empty);
+  host.innerHTML = "";
+  if (!live.length) { host.appendChild(el("div", { class: "empty" }, "No bookings match these filters.")); return; }
+  const Wd = Math.max(300, host.clientWidth || 600), H = Wd < 480 ? 260 : 330;
+  const direct = live.length <= 4 && Wd >= 520;
+  const m = { t: 12, r: direct ? 118 : 14, b: 40, l: 52 };
+  let lo = Infinity, hi = -Infinity;
+  live.forEach(s => { for (let d = 0; d <= horizon; d++) { const y = s.v[d]; if (!Number.isNaN(y)) { if (y < lo) lo = y; if (y > hi) hi = y; } } });
+  if (!isFinite(lo)) { host.appendChild(el("div", { class: "empty" }, "Not enough room-nights to plot this measure.")); return; }
+  if (measure !== "adr" && lo > 0) lo = 0;
+  const ticks = niceTicks(lo, hi, 6); lo = ticks[0]; hi = ticks[ticks.length - 1];
+  const pw = Wd - m.l - m.r, ph = H - m.t - m.b;
+  const X = d => m.l + (1 - d / horizon) * pw, Y = y => m.t + (1 - (y - lo) / (hi - lo)) * ph;
+  const xt = horizon <= 60 ? [60, 45, 30, 21, 14, 7, 0] : horizon <= 120 ? [120, 90, 60, 30, 14, 0] : [365, 300, 240, 180, 120, 60, 0];
+  let svg = `<svg viewBox="0 0 ${Wd} ${H}" role="img" aria-label="${esc(MEASURES[measure].label)} by days before stay">`;
+  ticks.forEach(t => {
+    svg += `<line x1="${m.l}" x2="${m.l + pw}" y1="${Y(t)}" y2="${Y(t)}" stroke="${t === 0 ? "var(--ink-3)" : "var(--grid)"}" stroke-width="1"/>`;
+    svg += `<text x="${m.l - 8}" y="${Y(t) + 4}" text-anchor="end">${fmtAxis(t, unit)}</text>`;
+  });
+  if (measure === "pace" && hi >= 100 && lo <= 100) svg += `<line x1="${m.l}" x2="${m.l + pw}" y1="${Y(100)}" y2="${Y(100)}" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="3 3"/>`;
+  xt.filter(d => Wd >= 480 || d % 30 === 0 || horizon <= 60).forEach(d => {
+    svg += `<line x1="${X(d)}" x2="${X(d)}" y1="${m.t + ph}" y2="${m.t + ph + 4}" stroke="var(--ink-3)" stroke-width="1"/>`;
+    svg += `<text x="${X(d)}" y="${m.t + ph + 17}" text-anchor="middle">${d}</text>`;
+  });
+  svg += `<text class="axis-title" x="${m.l + pw / 2}" y="${H - 4}" text-anchor="middle">Days before ${state.basis === "night" ? "stay night" : "arrival"}</text>`;
+  live.forEach(s => {
+    let p = "", pen = false;
+    for (let d = horizon; d >= 0; d--) {
+      const y = s.v[d];
+      if (Number.isNaN(y)) { pen = false; continue; }
+      p += (pen ? "L" : "M") + X(d).toFixed(1) + " " + Y(y).toFixed(1); pen = true;
+    }
+    svg += `<path d="${p}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  });
+  if (direct) {
+    const labs = live.filter(s => !Number.isNaN(s.v[0])).map(s => ({ s, y: Y(s.v[0]) })).sort((a, b) => a.y - b.y);
+    for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < 15) labs[i].y = labs[i - 1].y + 15;
+    const over = labs.length ? labs[labs.length - 1].y - (m.t + ph) : 0;
+    if (over > 0) labs.forEach(l => l.y -= over);
+    labs.forEach(l => {
+      svg += `<circle cx="${X(0)}" cy="${Y(l.s.v[0])}" r="4" fill="${l.s.color}" stroke="var(--surface)" stroke-width="2"/>`;
+      svg += `<text class="endlab" x="${X(0) + 10}" y="${l.y + 4}">${esc(l.s.name)}</text>`;
+    });
+  }
+  svg += `<g data-role="hover" visibility="hidden"><line data-role="xh" y1="${m.t}" y2="${m.t + ph}" stroke="var(--ink-3)" stroke-width="1"/>` +
+    live.map(s => `<circle r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join("") + "</g>";
+  svg += `<rect x="${m.l}" y="${m.t}" width="${pw}" height="${ph}" fill="transparent" data-role="hit"/></svg>`;
+  host.innerHTML = svg;
+  const tip = el("div", { class: "tip" }); tip.hidden = true; host.appendChild(tip);
+  const hov = host.querySelector('[data-role="hover"]'), xh = host.querySelector('[data-role="xh"]'), dots = hov.querySelectorAll("circle");
+  const hit = host.querySelector('[data-role="hit"]'), svgEl = host.querySelector("svg");
+  const move = ev => {
+    const r = svgEl.getBoundingClientRect(), px = (ev.clientX - r.left) * (Wd / r.width);
+    const d = Math.max(0, Math.min(horizon, Math.round((1 - (px - m.l) / pw) * horizon)));
+    xh.setAttribute("x1", X(d)); xh.setAttribute("x2", X(d));
+    live.forEach((s, i) => {
+      const y = s.v[d], c = dots[i];
+      if (Number.isNaN(y)) c.setAttribute("visibility", "hidden");
+      else { c.setAttribute("visibility", "inherit"); c.setAttribute("cx", X(d)); c.setAttribute("cy", Y(y)); }
+    });
+    hov.setAttribute("visibility", "visible");
+    tip.innerHTML = `<div class="th">${d === 0 ? "On the night" : d + (d === 1 ? " day out" : " days out")}</div>` +
+      live.map(s => `<div class="tr"><span class="sw" style="background:${s.color}"></span><span class="n">${esc(s.name)}</span><span class="x">${fmt(s.v[d], unit)}</span></div>`).join("");
+    tip.hidden = false;
+    const scale = r.width / Wd, tx = X(d) * scale, tw = tip.offsetWidth;
+    tip.style.left = Math.max(0, Math.min(r.width - tw, tx + 14 + tw > r.width ? tx - tw - 14 : tx + 14)) + "px";
+    tip.style.top = "8px";
+  };
+  hit.addEventListener("pointermove", move);
+  hit.addEventListener("pointerdown", move);
+  hit.addEventListener("pointerleave", () => { hov.setAttribute("visibility", "hidden"); tip.hidden = true; });
+}
+
+/* ---------- render ---------- */
+function render() {
+  document.getElementById("b-f-prop").closest(".filters").hidden = state.shared;
+  ui[1].mirrored.hidden = !state.shared;
+  state.panels.forEach((st, idx) => {
+    const refs = ui[idx], f = idx === 1 && state.shared ? state.panels[0].f : st.f;
+    const c = compute(st.compare, f, state.basis), M = MEASURES[st.measure];
+    const series = seriesValues(c, st.measure, state.horizon), live = series.filter(s => !s.empty);
+    let g = 0, x = 0, fin = 0, finRev = 0, ns = 0;
+    for (let s = 0; s < c.S; s++) { g += c.gross[s * c.W]; x += c.canc[s * c.W]; fin += c.fin[s]; finRev += c.finRev[s]; ns += c.noshow[s]; }
+    refs.kpis.innerHTML = [
+      ["Stayed", nf0.format(fin) + " rn"],
+      ["Booked (gross)", nf0.format(g) + " rn"],
+      ["Canceled", g ? nf1.format(100 * x / g) + "%" : "n/a"],
+      ["No-show", g ? nf1.format(100 * ns / g) + "%" : "n/a"],
+      ["Median lead", c.medLead == null ? "n/a" : c.medLead + " d"],
+      ["ADR, stayed", fin ? "€" + nf1.format(finRev / fin) : "n/a"],
+    ].map(([k, v]) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+    refs.title.textContent = M.label + (st.compare === "none" ? "" : ", by " + c.dim.label.toLowerCase());
+    refs.sub.textContent = M.sub + ".";
+    drawChart(refs, series, st.measure, state.horizon);
+    refs.legend.hidden = live.length < 2;
+    refs.legend.innerHTML = live.map(s => `<span><span class="sw" style="background:${s.color}"></span>${esc(s.name)}</span>`).join("");
+    const cps = [365, 180, 120, 90, 60, 30, 14, 7, 3, 0].filter(d => d <= state.horizon);
+    refs.table.innerHTML = `<table><thead><tr><th>${esc(c.dim.label)}</th>${cps.map(d => `<th>${d === 0 ? "Night" : d + " d"}</th>`).join("")}</tr></thead><tbody>` +
+      live.map(s => `<tr><td><span class="sw" style="background:${s.color}"></span> ${esc(s.name)}</td>${cps.map(d => `<td>${fmt(s.v[d], M.unit)}</td>`).join("")}</tr>`).join("") + "</tbody></table>";
+  });
+}
+render();
+let rt, lastW = panelsEl.clientWidth;
+new ResizeObserver(() => { const w = panelsEl.clientWidth; if (w === lastW) return; lastW = w; clearTimeout(rt); rt = setTimeout(render, 80); }).observe(panelsEl);
+</script>
