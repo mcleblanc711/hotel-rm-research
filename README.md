@@ -83,6 +83,16 @@ Each module reads the same canonical tables.
 6. Pricing and early-booking economics
 7. Multi-property capacity
 
+## Data handling
+
+Only two sources are ever loaded into a cloud warehouse, shown in a hosted
+dashboard or committed to this repo: the public dataset below and the made-up
+export in `data/synthetic/`. The planned BigQuery version follows the same rule.
+
+A private PMS export is handled differently. It runs through the same SQL on the
+machine where it already lives, through a local adapter that is not published
+here. Its data is never uploaded to a cloud service or an AI tool.
+
 ## Data and licence
 
 Antonio, N., de Almeida, A., & Nunes, L. (2019). Hotel booking demand datasets.
