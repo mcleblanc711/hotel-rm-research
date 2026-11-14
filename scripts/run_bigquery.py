@@ -32,8 +32,9 @@ import sqlglot
 from sqlglot import exp
 
 from pipeline_config import (
-    AS_OF_FROM_STAGING_SQL, FAR_FUTURE, OUTPUT_TABLES, QA_REPORT_FETCH_SQL, ROOT,
-    SEEDS, SOURCES, print_qa, qa_report_sql, run_context_sql, sql_steps,
+    AS_OF_FROM_STAGING_SQL, FAR_FUTURE, FC_ACCURACY_STEP, FORECAST_STEPS, QA_REPORT_FETCH_SQL,
+    ROOT, SEEDS, SOURCES, fc_context_sql, fc_forecast_sql, output_tables, print_qa,
+    qa_report_sql, run_context_sql, sql_steps,
 )
 
 ALLOWED_SOURCES = {"antonio", "synthetic"}  # public or made-up data only
@@ -115,7 +116,7 @@ def values_match(a, b):
     return str(a) == str(b)
 
 
-def compare_engines(bq_query, source, out):
+def compare_engines(bq_query, source, out, tables):
     import duckdb
 
     db_file = ROOT / "out" / source / "canonical.duckdb"
@@ -125,7 +126,7 @@ def compare_engines(bq_query, source, out):
         return None
     con = duckdb.connect(str(db_file), read_only=True)
     rows, mismatches = [], 0
-    for table in OUTPUT_TABLES:
+    for table in tables:
         cols = [(r[0], r[1]) for r in con.execute(f"DESCRIBE {table}").fetchall()]
         sql, labels = profile_sql(table, cols)
         local = con.execute(sql).fetchone()
@@ -138,7 +139,7 @@ def compare_engines(bq_query, source, out):
         w = csv.writer(f)
         w.writerow(["table", "column", "metric", "duckdb", "bigquery", "match"])
         w.writerows(rows)
-    print(f"\nEngine comparison: {len(rows)} aggregates over {len(OUTPUT_TABLES)} tables, "
+    print(f"\nEngine comparison: {len(rows)} aggregates over {len(tables)} tables, "
           f"{mismatches} mismatch(es). Details: {(out / 'engine_comparison.csv').relative_to(ROOT)}")
     for r in rows:
         if not r[5]:
@@ -183,6 +184,8 @@ def main():
     fingerprint = hashlib.sha256(src.read_bytes()).hexdigest()
     prelude = function_prelude()
     files = [cfg["adapter"], *sql_steps(cfg)]
+    if cfg.get("forecast"):
+        files += [*FORECAST_STEPS, FC_ACCURACY_STEP]
     translated = {f: to_bigquery((ROOT / f).read_text()) for f in files}
     for i, f in enumerate(files, start=1):
         name = f"{i:02d}_{f.rsplit('/', 1)[-1]}"
@@ -255,7 +258,15 @@ def main():
         w.writerow(["check_name", "severity", "observed", "expected", "passed", "description"])
         w.writerows(qa)
 
-    mismatches = compare_engines(lambda sql: run("compare", sql), args.source, out)
+    if cfg.get("forecast"):
+        run("fc_context", fc_context_sql(cfg["forecast"]))
+        for f in FORECAST_STEPS:
+            run(f, prelude + translated[f])
+        run("fc_forecast", fc_forecast_sql(["fc_forecast_pickup"]))
+        run(FC_ACCURACY_STEP, prelude + translated[FC_ACCURACY_STEP])
+
+    mismatches = compare_engines(lambda sql: run("compare", sql), args.source, out,
+                                 output_tables(cfg))
 
     billed = sum(s["bytes_billed"] for s in log)
     (out / "run_log.json").write_text(json.dumps(

@@ -14,8 +14,9 @@ import sys
 
 import duckdb
 from pipeline_config import (
-    AS_OF_FROM_STAGING_SQL, FAR_FUTURE, OUTPUT_TABLES, QA_REPORT_FETCH_SQL, ROOT,
-    SCHEMA_VERSION, SEEDS, SOURCES, print_qa, qa_report_sql, run_context_sql, sql_steps,
+    AS_OF_FROM_STAGING_SQL, FAR_FUTURE, FC_ACCURACY_STEP, FORECAST_STEPS, QA_REPORT_FETCH_SQL,
+    ROOT, SCHEMA_VERSION, SEEDS, SOURCES, fc_context_sql, fc_forecast_sql, output_tables,
+    print_qa, qa_report_sql, run_context_sql, sql_steps,
 )
 
 
@@ -61,7 +62,14 @@ def main():
     con.execute(qa_report_sql(cfg))
     fatal = print_qa(con.execute(QA_REPORT_FETCH_SQL).fetchall(), args.source)
 
-    tables = OUTPUT_TABLES
+    if cfg.get("forecast"):
+        con.execute(fc_context_sql(cfg["forecast"]))
+        for f in FORECAST_STEPS:
+            run_sql(con, f)
+        con.execute(fc_forecast_sql(["fc_forecast_pickup"]))
+        run_sql(con, FC_ACCURACY_STEP)
+
+    tables = output_tables(cfg)
     counts = {}
     for t in tables:
         con.execute(f"COPY {t} TO '{out / (t + '.csv')}' (HEADER, DELIMITER ',')")

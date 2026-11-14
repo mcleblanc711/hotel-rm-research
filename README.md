@@ -19,11 +19,13 @@ the data never leaving the machine it lives on.
 | `sql/canonical/` | `fact_reservation` (one row per room booking) and `fact_stay_night` (one row per booked room-night) |
 | `sql/qa/` | Structural checks that fail the run, and semantic checks that report |
 | `sql/marts/` | Booking-curve tables by stay night, source of business and days out |
+| `sql/forecast/` | Pickup forecasting backtest: on-the-books by days out, additive and multiplicative pickup, accuracy |
+| `sql/bigquery_ml/` | BigQuery only: ML linear regression and ARIMA_PLUS forecasts, and the public dashboard tables |
 | `sql/dialect/` | The only engine-specific SQL: two date helpers and a numbers table, for DuckDB, SQL Server and BigQuery |
 | `excel/` | A workbook driven by plain SUMIFS formulas, plus Power Query files |
 | `artifact/` | A single-page interactive Booking Curve Explorer |
 | `data/synthetic/` | A made-up PMS export in a different shape, proving the adapter swap works |
-| `docs/` | Schema, source compatibility, QA contract, [BigQuery run](docs/bigquery.md) |
+| `docs/` | Schema, source compatibility, QA contract, [BigQuery run](docs/bigquery.md), [forecasting](docs/forecasting.md), [dashboard](docs/dashboard.md) |
 
 ## Run it
 
@@ -35,6 +37,7 @@ uv run --with duckdb scripts/run_pipeline.py --source synthetic    # same SQL, d
 uv run --with duckdb scripts/build_artifact.py                     # out/artifact/booking-curve-explorer.html
 uv run --with duckdb --with openpyxl scripts/build_workbook.py     # excel/booking_curves.xlsx
 uv run scripts/run_bigquery.py --source antonio --project YOUR_PROJECT   # same SQL in BigQuery, checked against DuckDB
+uv run scripts/bigquery_forecast_dashboard.py --project YOUR_PROJECT     # BigQuery ML forecasts + public dashboard tables
 ```
 
 Python and DuckDB are a convenience for running the SQL locally. The SQL files
@@ -53,6 +56,22 @@ sources. Two things stand out in this dataset:
 - Group business sits above 100% of its final for months, then washes down.
   Corporate and "other" business books mostly inside 30 days.
 - 36.6% of booked room-nights cancel. Gross bookings badly overstate demand.
+
+## Forecasting
+
+On 28 February 2017, five models forecast every night to the end of August at
+both hotels ([details](docs/forecasting.md)). Error is WAPE: total absolute
+error ÷ total actual room-nights.
+
+| | 1–7 days out | 31–60 | 91–184 | All |
+|---|---|---|---|---|
+| Additive pickup | **2.5%** | 13.0% | 21.6% | 16.6% |
+| BigQuery ML linear regression | 9.4% | **7.2%** | **9.1%** | **8.4%** |
+| BigQuery ML ARIMA_PLUS | 12.3% | 10.3% | 13.0% | 12.4% |
+
+Pickup wins near in, where what is on the books carries the signal. The
+regression wins further out. It is one forecast date, and the hotels sell out,
+which flatters forecasts that predict "about normal" far out.
 
 ## What this data cannot tell you
 
@@ -83,7 +102,7 @@ Each module reads the same canonical tables.
 1. Source-of-business mapping and booking-cluster detection
 2. Net revenue and NRevPAR under explicit distribution-cost assumptions
 3. Cancellation wash by days out
-4. Pickup forecasting, and unconstraining tested on simulated demand
+4. Pickup forecasting ([single-date backtest done](docs/forecasting.md); next: rolling backtest), and unconstraining tested on simulated demand
 5. Length-of-stay controls, displacement and bid prices
 6. Pricing and early-booking economics
 7. Multi-property capacity

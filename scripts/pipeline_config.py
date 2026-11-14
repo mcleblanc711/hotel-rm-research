@@ -20,6 +20,10 @@ SOURCES = {
         # (sql file, the qa_* table it creates)
         "extra_qa": [("sql/qa/antonio_profile.sql", "qa_antonio_profile")],
         "as_of": None,  # historical file: derived from the latest status date
+        # Forecast backtest (sql/forecast/): train on stays from train_start to
+        # forecast_date, forecast the next horizon_days nights. train_start skips
+        # July 2015, whose early nights miss guests who arrived before the data starts.
+        "forecast": {"train_start": "2015-08-01", "forecast_date": "2017-02-28", "horizon_days": 184},
         "limitations": [
             "No authentic reservation IDs; booking_id is a surrogate from row position.",
             "booking_date is derived as arrival_date minus lead_time.",
@@ -47,6 +51,12 @@ OUTPUT_TABLES = [
     "mart_booking_curve", "mart_booking_curve_compact", "qa_report",
 ]
 
+FORECAST_STEPS = [
+    "sql/forecast/otb_by_days_out.sql",
+    "sql/forecast/pickup_models.sql",
+]
+FORECAST_OUTPUT_TABLES = ["fc_pickup_curve", "fc_forecast", "fc_accuracy"]
+
 FAR_FUTURE = "2999-12-31"  # placeholder as_of until the adapter has run
 
 
@@ -60,6 +70,32 @@ def sql_steps(cfg):
         *(f for f, _ in cfg["extra_qa"]),
         "sql/marts/booking_curve.sql",
     ]
+
+
+def output_tables(cfg):
+    return OUTPUT_TABLES + (FORECAST_OUTPUT_TABLES if cfg.get("forecast") else [])
+
+
+def fc_context_sql(fc):
+    """CREATE fc_context from the source's forecast settings (checked, then inlined)."""
+    train_start = dt.date.fromisoformat(fc["train_start"])
+    forecast_date = dt.date.fromisoformat(fc["forecast_date"])
+    horizon = int(fc["horizon_days"])
+    if not (train_start < forecast_date and 0 < horizon <= 366):
+        raise ValueError(f"bad forecast settings {fc!r}")
+    return (
+        f"CREATE OR REPLACE TABLE fc_context AS SELECT CAST('{train_start}' AS DATE) AS train_start, "
+        f"CAST('{forecast_date}' AS DATE) AS forecast_date, {horizon} AS horizon_days"
+    )
+
+
+def fc_forecast_sql(tables):
+    """Union the per-model forecast tables into fc_forecast."""
+    return "CREATE OR REPLACE TABLE fc_forecast AS " + " UNION ALL ".join(
+        f"SELECT * FROM {t}" for t in tables)
+
+
+FC_ACCURACY_STEP = "sql/forecast/accuracy.sql"
 
 
 def qa_tables(cfg):
