@@ -10,40 +10,13 @@ import argparse
 import datetime as dt
 import hashlib
 import json
-import pathlib
 import sys
 
 import duckdb
-
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-SCHEMA_VERSION = "0.1"
-
-SOURCES = {
-    "antonio": {
-        "source_system": "ANTONIO",
-        "file": "data/raw/hotel_bookings.csv",
-        "adapter": "sql/adapters/antonio_to_staging.sql",
-        "adapter_version": "1",
-        "extra_qa": ["sql/qa/antonio_profile.sql"],
-        "as_of": None,  # historical file: derived from the latest status date
-        "limitations": [
-            "No authentic reservation IDs; booking_id is a surrogate from row position.",
-            "booking_date is derived as arrival_date minus lead_time.",
-            "No modification history: booking curves are reconstructed from final state.",
-            "ADR is reservation-level; nightly revenue is an even allocation.",
-            "No verified capacity: occupancy and RevPAR are not computable without assumptions.",
-        ],
-    },
-    "synthetic": {
-        "source_system": "SYNTH",
-        "file": "data/synthetic/pms_export.csv",
-        "adapter": "sql/adapters/synthetic_pms_to_staging.sql",
-        "adapter_version": "1",
-        "extra_qa": [],
-        "as_of": "2026-03-15",
-        "limitations": ["Hand-made synthetic data used only to prove adapter portability."],
-    },
-}
+from pipeline_config import (
+    AS_OF_FROM_STAGING_SQL, FAR_FUTURE, OUTPUT_TABLES, QA_REPORT_FETCH_SQL, ROOT,
+    SCHEMA_VERSION, SEEDS, SOURCES, print_qa, qa_report_sql, run_context_sql, sql_steps,
+)
 
 
 def run_sql(con, rel_path):
@@ -70,53 +43,25 @@ def main():
         "FROM read_csv(?, all_varchar=true, header=true, parallel=false)",
         [str(src)],
     )
-    for seed in ("dim_source_mapping", "dim_property"):
+    for seed in SEEDS:
         con.execute(
             f"CREATE TABLE {seed} AS SELECT * FROM read_csv(?, header=true, all_varchar=true)",
             [str(ROOT / "data" / "seeds" / f"{seed}.csv")],
         )
 
-    con.execute(
-        "CREATE TABLE run_context AS SELECT ? AS source_system, ? AS source_fingerprint, "
-        "CAST(? AS DATE) AS as_of_date",
-        [cfg["source_system"], fingerprint, cfg["as_of"] or "2999-12-31"],
-    )
+    con.execute(run_context_sql(cfg["source_system"], fingerprint, cfg["as_of"] or FAR_FUTURE))
     run_sql(con, cfg["adapter"])
     if cfg["as_of"] is None:
-        con.execute("UPDATE run_context SET as_of_date = (SELECT MAX(status_date) FROM stg_reservation)")
+        as_of = con.execute(AS_OF_FROM_STAGING_SQL).fetchone()[0]
+        con.execute(run_context_sql(cfg["source_system"], fingerprint, as_of))
 
-    for f in (
-        "sql/canonical/fact_reservation.sql",
-        "sql/canonical/fact_stay_night.sql",
-        "sql/qa/structural.sql",
-        "sql/qa/semantic.sql",
-        *cfg["extra_qa"],
-        "sql/marts/booking_curve.sql",
-    ):
+    for f in sql_steps(cfg):
         run_sql(con, f)
 
-    qa = con.execute(
-        "SELECT check_name, severity, observed, expected, "
-        "CASE WHEN expected IS NULL THEN NULL WHEN observed = expected THEN 1 ELSE 0 END AS passed, "
-        "description FROM qa_results ORDER BY severity, check_name"
-    ).fetchall()
-    con.execute(
-        "CREATE TABLE qa_report AS SELECT *, CASE WHEN expected IS NULL THEN NULL "
-        "WHEN observed = expected THEN 1 ELSE 0 END AS passed FROM qa_results"
-    )
+    con.execute(qa_report_sql(cfg))
+    fatal = print_qa(con.execute(QA_REPORT_FETCH_SQL).fetchall(), args.source)
 
-    print(f"\nQA report ({args.source})")
-    print(f"{'check':40} {'sev':6} {'observed':>12} {'expected':>12}  result")
-    fatal = 0
-    for name, sev, obs, exp, passed, _ in qa:
-        result = "review" if passed is None else ("ok" if passed else "MISMATCH")
-        if sev == "FATAL" and passed == 0:
-            fatal += 1
-        exp_s = "" if exp is None else f"{exp:,.0f}"
-        print(f"{name:40} {sev:6} {obs:>12,.0f} {exp_s:>12}  {result}")
-
-    tables = ["fact_reservation", "fact_stay_night", "dim_property", "dim_source_mapping",
-              "mart_booking_curve", "mart_booking_curve_compact", "qa_report"]
+    tables = OUTPUT_TABLES
     counts = {}
     for t in tables:
         con.execute(f"COPY {t} TO '{out / (t + '.csv')}' (HEADER, DELIMITER ',')")

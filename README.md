@@ -19,11 +19,11 @@ the data never leaving the machine it lives on.
 | `sql/canonical/` | `fact_reservation` (one row per room booking) and `fact_stay_night` (one row per booked room-night) |
 | `sql/qa/` | Structural checks that fail the run, and semantic checks that report |
 | `sql/marts/` | Booking-curve tables by stay night, source of business and days out |
-| `sql/dialect/` | The only engine-specific SQL: two date helpers and a numbers table |
+| `sql/dialect/` | The only engine-specific SQL: two date helpers and a numbers table, for DuckDB, SQL Server and BigQuery |
 | `excel/` | A workbook driven by plain SUMIFS formulas, plus Power Query files |
 | `artifact/` | A single-page interactive Booking Curve Explorer |
 | `data/synthetic/` | A made-up PMS export in a different shape, proving the adapter swap works |
-| `docs/` | Schema, source compatibility, QA contract |
+| `docs/` | Schema, source compatibility, QA contract, [BigQuery run](docs/bigquery.md) |
 
 ## Run it
 
@@ -34,10 +34,14 @@ uv run --with duckdb scripts/run_pipeline.py --source antonio      # canonical C
 uv run --with duckdb scripts/run_pipeline.py --source synthetic    # same SQL, different source
 uv run --with duckdb scripts/build_artifact.py                     # out/artifact/booking-curve-explorer.html
 uv run --with duckdb --with openpyxl scripts/build_workbook.py     # excel/booking_curves.xlsx
+uv run scripts/run_bigquery.py --source antonio --project YOUR_PROJECT   # same SQL in BigQuery, checked against DuckDB
 ```
 
 Python and DuckDB are a convenience for running the SQL locally. The SQL files
 can be run in order in any database, and the workbook needs only Excel.
+Every step is a `CREATE OR REPLACE TABLE … AS SELECT`, with no `INSERT` or
+`UPDATE`, so re-runs are repeatable and it also runs in the free BigQuery
+sandbox. [docs/bigquery.md](docs/bigquery.md) has the setup.
 
 ## What the curves show
 
@@ -68,8 +72,9 @@ Tested: the DuckDB pipeline on both sources (all structural QA passes), the
 explorer page's numbers against SQL, and the workbook's formulas recalculated
 in LibreOffice.
 
-Not yet tested: the workbook and Power Query files in Excel 365 itself, and the
-SQL Server version of the dialect file.
+Not yet tested: the workbook and Power Query files in Excel 365 itself, the
+SQL Server version of the dialect file, and the BigQuery run (its translated SQL
+has been reviewed, but not yet run in BigQuery).
 
 ## Roadmap
 

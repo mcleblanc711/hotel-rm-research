@@ -1,8 +1,9 @@
 -- Semantic QA: warnings. Unusual rows are reported and kept, never deleted.
 -- expected is NULL: these are counts to review, not pass/fail equations.
 
-INSERT INTO qa_results
-SELECT 'negative_adr', 'WARN', CAST(COUNT(*) AS DOUBLE), CAST(NULL AS DOUBLE), 'Bookings with ADR < 0'
+CREATE OR REPLACE TABLE qa_semantic AS
+SELECT 'negative_adr' AS check_name, 'WARN' AS severity, CAST(COUNT(*) AS DOUBLE) AS observed,
+       CAST(NULL AS DOUBLE) AS expected, 'Bookings with ADR < 0' AS description
 FROM fact_reservation WHERE adr < 0
 UNION ALL
 SELECT 'zero_adr', 'WARN', CAST(COUNT(*) AS DOUBLE), NULL, 'Bookings with ADR = 0'

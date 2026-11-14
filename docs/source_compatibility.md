@@ -35,7 +35,7 @@ machine where that data is allowed to be, by copying
 1. Put the export in `data/private/` (ignored by git).
 2. Copy the synthetic adapter and map your columns.
 3. Add your segment codes to `data/seeds/dim_source_mapping.csv` under a new `source_system`.
-4. Add a source entry in `scripts/run_pipeline.py`, or run the SQL files in order in your own database.
+4. Add a source entry in `scripts/pipeline_config.py`, or run the SQL files in order in your own database.
 5. Run the QA scripts. All structural checks must pass before any chart is trusted.
 
 Things to check on the first real extract:

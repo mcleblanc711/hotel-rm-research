@@ -1,7 +1,11 @@
 -- Structural QA: must all pass. A FATAL failure stops the pipeline.
--- Each check returns: check_name, severity, observed, expected, passed (1/0).
+-- Each check returns: check_name, severity, observed, expected, description.
+-- The runner unions every qa_* table into qa_results and adds passed (1/0).
+-- Each QA file creates its own table instead of INSERTing into a shared one,
+-- so the whole pipeline is DDL-only (CREATE ... AS SELECT). That runs on
+-- engines without DML too, such as the BigQuery sandbox.
 
-CREATE OR REPLACE TABLE qa_results AS
+CREATE OR REPLACE TABLE qa_structural AS
 SELECT 'booking_id_unique' AS check_name, 'FATAL' AS severity,
        CAST(COUNT(*) - COUNT(DISTINCT booking_id) AS DOUBLE) AS observed,
        CAST(0 AS DOUBLE) AS expected,

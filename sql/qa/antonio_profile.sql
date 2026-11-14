@@ -2,8 +2,9 @@
 -- earlier design notes instead of trusting it. Mismatches are WARN, not FATAL,
 -- because the numbers below are claims to test, not rules.
 
-INSERT INTO qa_results
-SELECT 'antonio_total_rows', 'WARN', CAST(COUNT(*) AS DOUBLE), CAST(119390 AS DOUBLE), 'Reported total records'
+CREATE OR REPLACE TABLE qa_antonio_profile AS
+SELECT 'antonio_total_rows' AS check_name, 'WARN' AS severity, CAST(COUNT(*) AS DOUBLE) AS observed,
+       CAST(119390 AS DOUBLE) AS expected, 'Reported total records' AS description
 FROM fact_reservation
 UNION ALL
 SELECT 'antonio_city_rows', 'WARN', CAST(COUNT(*) AS DOUBLE), 79330, 'Reported City Hotel bookings'
