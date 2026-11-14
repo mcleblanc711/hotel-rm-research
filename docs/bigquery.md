@@ -94,9 +94,66 @@ jobs) and 273 MB (synthetic, 17 jobs), most of it BigQuery's minimum charge
 of 10 MB per table read. The DDL-only change left the DuckDB outputs as they
 were: all 14 output CSVs match row for row on both sources.
 
+## Partitioning and clustering, measured
+
+`scripts/bigquery_layout_benchmark.py` copies `fact_stay_night` (409,257 rows,
+72 MB) into four layouts and runs the same five queries on each, with the
+query cache off. Full results are in `out/bigquery/antonio/layout_benchmark.csv`.
+
+```
+uv run scripts/bigquery_layout_benchmark.py --project YOUR_PROJECT
+```
+
+MB processed, and MB billed in brackets (BigQuery bills at least 10 MB per table read):
+
+| Query | Plain | Monthly partitions | Clustered on date | Partitioned + clustered |
+|---|---|---|---|---|
+| q1: one month at one hotel (filters on the month key) | 18.8 (18.9) | **0.9** (10.5) | 18.8 (18.9) | **0.9** (10.5) |
+| q1b: same, but filters on `stay_date` only | 15.6 (15.7) | 15.6 (15.7) | 15.6 (15.7) | **0.7** (10.5)\* |
+| q2: one stay night at one hotel | 27.0 (27.3) | **0.8** (10.5) | 27.0 (27.3) | **0.8** (10.5) |
+| q3: one source of business, all dates | 9.5 (10.5) | 9.5 (10.5) | 9.5 (10.5) | 9.5 (10.5) |
+| q4: room-nights by property, no filter | 6.1 (10.5) | 6.1 (10.5) | 6.1 (10.5) | 6.1 (10.5) |
+| q5: `SELECT * … LIMIT 10` | 72.4 | 72.4 | 72.4 | 72.4 |
+
+\* The dry run estimated 15.6 MB here; only 0.7 MB was read.
+
+What this shows:
+
+- **Partition pruning works, but only when the filter is on the partition
+  column.** q1 reads 95% less with monthly partitions. q1b asks the same question
+  through `stay_date` and gets no pruning from the partitioned-only table.
+- **At this size, the 10 MB minimum hides most of the saving.** q1 goes from
+  18.9 MB to 10.5 MB billed, not to 0.9 MB.
+- **Clustering alone does nothing at 72 MB.** Google's guidance is that clustering
+  pays off above about 64 MB per table or partition, and that partitions should
+  hold about 10 GB or more. This table is under both.
+- **A dry run cannot see clustering savings.** In q1b, the partitioned and
+  clustered table was estimated at 15.6 MB and read 0.7 MB. The likely reason is
+  that each month is stored in its own blocks, so BigQuery skips blocks whose
+  date range cannot match. Partition pruning shows up in the estimate; block
+  pruning only shows up after the query runs.
+- **`LIMIT` does not reduce bytes scanned.** `SELECT *` reads every column of every
+  row whatever the layout, which made q5 the most expensive query in the test.
+  Naming only the columns you need (q4 reads 6 MB) matters more here than any layout.
+
+**Decision: the canonical table stays unpartitioned.** At 72 MB, the saving is
+at most 17 MB billed per query (q2), and getting it would mean adding a `stay_year_month` column
+to the canonical schema for one engine. The layout to use once a table reaches
+the gigabytes (many properties, several years of history) is
+partitioned by stay month and clustered by property and source of business.
+
+**Sandbox gotcha: date partitions on historical data disappear.** The sandbox
+forces a 60-day partition expiration, counted from each partition's own date, and
+`OPTIONS (partition_expiration_days = NULL)` does not override it. A table
+partitioned by `DATE_TRUNC(stay_date, MONTH)` was created with 0 rows, because
+every stay date is from 2015–2017. The benchmark uses integer-range partitions
+on a `stay_year_month` key (`201608`), which have no expiration. A
+billing-enabled project can use date partitions normally.
+
+**Changing partitioning needs a DROP.** `CREATE OR REPLACE TABLE` cannot change
+an existing table's partitioning, so the benchmark drops and recreates each table.
+
 ## Next
 
-- Partition `fact_stay_night` by `stay_date` and cluster by property and source
-  of business. Record bytes scanned before and after.
 - Pickup forecasting with BigQuery ML (`ARIMA_PLUS`), roadmap item 4.
 - A Looker Studio dashboard on the booking-curve marts.
