@@ -87,9 +87,12 @@ so a bad query fails instead of scanning more. A full run should bill well under
 
 ## Status
 
-Not yet run against BigQuery. The translated SQL has been reviewed offline,
-and the DuckDB pipeline gives the same outputs as before the DDL-only change
-(all 14 output CSVs, compared row for row, on both sources).
+Tested on 2026-11-14 in a BigQuery sandbox project, on both sources. All
+FATAL QA checks pass, and all 215 aggregates in `engine_comparison.csv` match
+the DuckDB run on each source. A full run billed 449 MB (public dataset, 20
+jobs) and 273 MB (synthetic, 17 jobs), most of it BigQuery's minimum charge
+of 10 MB per table read. The DDL-only change left the DuckDB outputs as they
+were: all 14 output CSVs match row for row on both sources.
 
 ## Next
 

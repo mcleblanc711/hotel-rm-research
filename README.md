@@ -69,12 +69,12 @@ sources. Two things stand out in this dataset:
 ## Status
 
 Tested: the DuckDB pipeline on both sources (all structural QA passes), the
-explorer page's numbers against SQL, and the workbook's formulas recalculated
-in LibreOffice.
+same SQL in BigQuery (all 215 per-column aggregates match DuckDB on both
+sources), the explorer page's numbers against SQL, and the workbook's formulas
+recalculated in LibreOffice.
 
-Not yet tested: the workbook and Power Query files in Excel 365 itself, the
-SQL Server version of the dialect file, and the BigQuery run (its translated SQL
-has been reviewed, but not yet run in BigQuery).
+Not yet tested: the workbook and Power Query files in Excel 365 itself, and the
+SQL Server version of the dialect file.
 
 ## Roadmap
 
