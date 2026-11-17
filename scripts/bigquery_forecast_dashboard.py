@@ -14,15 +14,14 @@ Steps, all in the source dataset unless noted:
   2. sql/bigquery_ml/arima_plus.sql      ARIMA_PLUS model + fc_forecast_arima
   3. fc_forecast = all five models; sql/forecast/accuracy.sql -> fc_accuracy
   4. sql/bigquery_ml/public_dashboard.sql -> tables in the public dataset
-Prints the accuracy table, the ARIMA model's chosen settings, and a Looker
-Studio link that opens a new report with the public tables connected.
+Prints the accuracy table, the ARIMA model's chosen settings, and the steps
+for connecting the public tables to a Looker Studio report (see docs/dashboard.md).
 Writes out/bigquery/<source>/forecast_accuracy.csv.
 """
 import argparse
 import csv
 import os
 import sys
-import urllib.parse
 
 from pipeline_config import (
     FC_ACCURACY_STEP, ROOT, SOURCES, fc_context_sql, fc_forecast_sql,
@@ -32,17 +31,6 @@ from run_bigquery import MAX_BYTES_BILLED, function_prelude, to_bigquery
 ML_DIR = ROOT / "sql" / "bigquery_ml"
 FORECAST_TABLES = ["fc_forecast_pickup", "fc_forecast_linear", "fc_forecast_arima"]
 PUBLIC_TABLES = ["forecast_nightly", "forecast_accuracy", "booking_pace"]
-
-
-def looker_studio_url(project, dataset, tables, report_name):
-    """Linking API URL: a new report with one BigQuery data source per table."""
-    params = [("c.mode", "edit"), ("r.reportName", report_name)]
-    for i, table in enumerate(tables):
-        a = f"ds.ds{i}"
-        params += [(f"{a}.connector", "bigQuery"), (f"{a}.type", "TABLE"),
-                   (f"{a}.projectId", project), (f"{a}.datasetId", dataset),
-                   (f"{a}.tableId", table), (f"{a}.datasourceName", table)]
-    return "https://lookerstudio.google.com/reporting/create?" + urllib.parse.urlencode(params)
 
 
 def main():
@@ -118,8 +106,9 @@ def main():
               f"seasonal={r['seasonal_periods']} holidays={r['has_holiday_effect']} "
               f"spikes/dips={r['has_spikes_and_dips']} step_changes={r['has_step_changes']}")
 
-    print("\nOpen this link to start the Looker Studio report with the public tables connected:")
-    print(looker_studio_url(args.project, args.public_dataset, PUBLIC_TABLES, "Hotel RM: pace and pickup forecasting"))
+    print("\nNext: build the Looker Studio report by hand (docs/dashboard.md).")
+    print("  Create -> Report -> BigQuery connector -> "
+          f"{args.project} -> {args.public_dataset}, then add each of: " + ", ".join(PUBLIC_TABLES))
 
 
 if __name__ == "__main__":

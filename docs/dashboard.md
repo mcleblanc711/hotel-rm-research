@@ -23,10 +23,19 @@ API for building reports, so the layout is done by hand from the spec below
 
 ## Create the report
 
-`scripts/bigquery_forecast_dashboard.py` prints a Looker Studio link at the end.
-Opening it creates a new report with the three tables already connected as data
-sources. If it opens a blank report instead, add each table by hand:
-Add data → BigQuery → project `hotelrmresearch` → dataset `hotel_rm_public`.
+Looker Studio's Linking API cannot create a report with data sources attached
+unless it starts from a template report (a bare `reporting/create` link fails
+with "ds0 is not a valid data source alias"), so connect the tables by hand:
+
+1. lookerstudio.google.com → Create → Report.
+2. Choose the **BigQuery** connector and authorize it.
+3. My Projects → `hotelrmresearch` → `hotel_rm_public` → `booking_pace` → Add.
+4. Add data → BigQuery → the same dataset, once each for `forecast_nightly` and
+   `forecast_accuracy`.
+5. Name the report, e.g. "Hotel RM: booking pace and forecast accuracy".
+
+If the project is not listed under My Projects, type `hotelrmresearch` in the
+project ID box.
 
 For each data source (Resource → Manage added data sources → Edit):
 - Data credentials: **Owner's credentials**.
