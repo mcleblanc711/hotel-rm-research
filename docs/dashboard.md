@@ -62,6 +62,13 @@ Data source `booking_pace`. Calculated fields:
   dimension `business_source`. Title: "Groups book early, then wash; corporate books late".
 - **Scorecard:** *Cancellation share*, with a chart filter `days_out = 0`.
   Title: "Share of booked room-nights that cancel".
+- **Reading note** (small grey text box under the charts, page-level): "Gross booked
+  counts every room-night booked at least *days out* before the stay, including
+  bookings that later canceled. On the books removes the ones that eventually
+  canceled. Both are shown as a share of final room-nights, the nights that
+  actually happened, so gross booked can exceed 100% and the gap between the lines
+  is the cancellation wash. The source records only each booking's final status,
+  so this is a hindsight view, not what a PMS would have shown on that day."
 
 ## Page 2: Forecast vs actual
 
@@ -96,6 +103,10 @@ Data source `forecast_accuracy`.
 
 ## Every page
 
+- Design goals: keep the report attractive, tidy and uncluttered. Prefer
+  fewer, larger charts, consistent alignment and spacing, short titles, a legend
+  that fits without truncation, and one note per page rather than blocks of text.
+  If a page feels crowded, remove something before adding more.
 - A footer text box: "Data: Hotel Booking Demand (Antonio, Almeida & Nunes, 2019),
   CC BY 4.0. Two Portuguese hotels, 2015–2017. Built with BigQuery and BigQuery ML."
   plus the GitHub link.
